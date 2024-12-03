@@ -47,7 +47,7 @@ public class Funcionario implements UserDetails {
 
     @Override
     public String getPassword() {
-        return "";
+        return this.funcionarioSenha;
     }
 
     @Override
