@@ -19,4 +19,5 @@ public class Coleta {
     private Integer clienteId;
     private LocalDate coletaData;
     private BigDecimal quantidadeKg;
+    private Integer funcionarioId;
 }
