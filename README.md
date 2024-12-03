@@ -1,1 +1,1 @@
-I commited application.properties for backup reason, it will be ignored in production.
+I commited application.properties for backup reasons, it will be ignored in production.
