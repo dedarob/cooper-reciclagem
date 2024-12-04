@@ -10,6 +10,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class GettingInController {
     @GetMapping
     public String home() {
-        return "Hello world";
+        return "Server pinged";
     }
 }
