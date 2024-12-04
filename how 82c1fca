@@ -1,0 +1,265 @@
+[33mcommit 82c1fca02dfbf796debcf291f56ac87fc88076c2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: dedarob <euclidesroberto16@gmail.com>
+Date:   Tue Dec 3 15:36:45 2024 -0300
+
+    configuração de segurança finalizada, falta apenas alguns ajustes na lógica entre o cliente
+
+[1mdiff --git a/.gitignore b/.gitignore[m
+[1mindex 6e853f0..8a35c17 100644[m
+[1m--- a/.gitignore[m
+[1m+++ b/.gitignore[m
+[36m@@ -3,7 +3,6 @@[m [mtarget/[m
+ !.mvn/wrapper/maven-wrapper.jar[m
+ !**/src/main/**/target/[m
+ !**/src/test/**/target/[m
+[31m-.application.properties[m
+ ### STS ###[m
+ .apt_generated[m
+ .classpath[m
+[1mdiff --git a/pom.xml b/pom.xml[m
+[1mindex 7896b58..447878c 100644[m
+[1m--- a/pom.xml[m
+[1m+++ b/pom.xml[m
+[36m@@ -41,7 +41,16 @@[m
+ 			<groupId>org.springframework.boot</groupId>[m
+ 			<artifactId>spring-boot-starter-web</artifactId>[m
+ 		</dependency>[m
+[31m-[m
+[32m+[m		[32m<dependency>[m
+[32m+[m			[32m<groupId>jakarta.validation</groupId>[m
+[32m+[m			[32m<artifactId>jakarta.validation-api</artifactId>[m
+[32m+[m			[32m<version>3.0.2</version>[m
+[32m+[m		[32m</dependency>[m
+[32m+[m		[32m<dependency>[m
+[32m+[m			[32m<groupId>com.auth0</groupId>[m
+[32m+[m			[32m<artifactId>java-jwt</artifactId>[m
+[32m+[m			[32m<version>4.4.0</version>[m
+[32m+[m		[32m</dependency>[m
+ 		<dependency>[m
+ 			<groupId>org.springframework.boot</groupId>[m
+ 			<artifactId>spring-boot-devtools</artifactId>[m
+[1mdiff --git a/src/main/java/com/cooper/reciclagem/controllers/AuthenticationController.java b/src/main/java/com/cooper/reciclagem/controllers/AuthenticationController.java[m
+[1mindex e4ceb31..a7ed59c 100644[m
+[1m--- a/src/main/java/com/cooper/reciclagem/controllers/AuthenticationController.java[m
+[1m+++ b/src/main/java/com/cooper/reciclagem/controllers/AuthenticationController.java[m
+[36m@@ -1,7 +1,9 @@[m
+ package com.cooper.reciclagem.controllers;[m
+ [m
+ import com.cooper.reciclagem.dto.AuthenticationDTO;[m
+[32m+[m[32mimport com.cooper.reciclagem.dto.LoginResponseDTO;[m
+ import com.cooper.reciclagem.dto.RegisterDTO;[m
+[32m+[m[32mimport com.cooper.reciclagem.infra.security.TokenService;[m
+ import com.cooper.reciclagem.models.Funcionario;[m
+ import com.cooper.reciclagem.repositories.FuncionarioRepository;[m
+ import jakarta.validation.Valid;[m
+[36m@@ -25,20 +27,25 @@[m [mpublic class AuthenticationController {[m
+     private FuncionarioRepository repository;[m
+     @Autowired[m
+     private PasswordEncoder passwordEncoder;[m
+[32m+[m[32m    @Autowired[m
+[32m+[m[32m    private TokenService tokenService;[m
+ [m
+     @PostMapping("/login")[m
+     public ResponseEntity login(@RequestBody @Valid AuthenticationDTO data){[m
+         var usernamePassword = new UsernamePasswordAuthenticationToken(data.username(), data.funcionarioSenha());[m
+         var auth = this.authenticationManager.authenticate(usernamePassword);[m
+[31m-        return ResponseEntity.ok().build();[m
+[32m+[m[32m        var token = tokenService.generateToken((Funcionario) auth.getPrincipal());[m
+[32m+[m
+[32m+[m[32m        return ResponseEntity.ok(new LoginResponseDTO(token));[m
+     }[m
+ [m
+     @PostMapping("/register")[m
+     public ResponseEntity register (@RequestBody @Valid RegisterDTO data){[m
+         if(this.repository.findByUsername(data.username()) != null) return ResponseEntity.badRequest().build();[m
+ [m
+[31m-        String encriptedSenha = new BCryptPasswordEncoder().encode(data.funcionarioSenha());[m
+[31m-        Funcionario newFuncionario = new Funcionario(data.username(), encriptedSenha, data.tipo());[m
+[32m+[m[32m        String encryptedPassword = passwordEncoder.encode(data.funcionarioSenha());[m
+[32m+[m
+[32m+[m[32m        Funcionario newFuncionario = new Funcionario(data.username(), encryptedPassword, data.tipo());[m
+ [m
+         this.repository.save(newFuncionario);[m
+         return  ResponseEntity.ok().build();[m
+[1mdiff --git a/src/main/java/com/cooper/reciclagem/dto/LoginResponseDTO.java b/src/main/java/com/cooper/reciclagem/dto/LoginResponseDTO.java[m
+[1mnew file mode 100644[m
+[1mindex 0000000..36a76dd[m
+[1m--- /dev/null[m
+[1m+++ b/src/main/java/com/cooper/reciclagem/dto/LoginResponseDTO.java[m
+[36m@@ -0,0 +1,4 @@[m
+[32m+[m[32mpackage com.cooper.reciclagem.dto;[m
+[32m+[m
+[32m+[m[32mpublic record LoginResponseDTO(String token) {[m
+[32m+[m[32m}[m
+[1mdiff --git a/src/main/java/com/cooper/reciclagem/infra/security/SecurityConfiguration.java b/src/main/java/com/cooper/reciclagem/infra/security/SecurityConfiguration.java[m
+[1mindex 96f8bb7..437399b 100644[m
+[1m--- a/src/main/java/com/cooper/reciclagem/infra/security/SecurityConfiguration.java[m
+[1m+++ b/src/main/java/com/cooper/reciclagem/infra/security/SecurityConfiguration.java[m
+[36m@@ -1,5 +1,6 @@[m
+ package com.cooper.reciclagem.infra.security;[m
+ [m
+[32m+[m[32mimport org.springframework.beans.factory.annotation.Autowired;[m
+ import org.springframework.context.annotation.Bean;[m
+ import org.springframework.context.annotation.Configuration;[m
+ import org.springframework.http.HttpMethod;[m
+[36m@@ -11,10 +12,13 @@[m [mimport org.springframework.security.config.http.SessionCreationPolicy;[m
+ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;[m
+ import org.springframework.security.crypto.password.PasswordEncoder;[m
+ import org.springframework.security.web.SecurityFilterChain;[m
+[32m+[m[32mimport org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;[m
+ [m
+ @Configuration[m
+ @EnableWebSecurity[m
+ public class SecurityConfiguration {[m
+[32m+[m[32m    @Autowired[m
+[32m+[m[32m    SecurityFilter securityFilter;[m
+     @Bean[m
+     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception{[m
+         return httpSecurity[m
+[36m@@ -26,6 +30,7 @@[m [mpublic class SecurityConfiguration {[m
+                         .requestMatchers(HttpMethod.POST, "/funcionario").hasRole("ADMIN")[m
+                         .anyRequest().authenticated()[m
+                 )[m
+[32m+[m[32m                .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)[m
+                 .build();[m
+     }[m
+ [m
+[1mdiff --git a/src/main/java/com/cooper/reciclagem/infra/security/SecurityFilter.java b/src/main/java/com/cooper/reciclagem/infra/security/SecurityFilter.java[m
+[1mnew file mode 100644[m
+[1mindex 0000000..494277a[m
+[1m--- /dev/null[m
+[1m+++ b/src/main/java/com/cooper/reciclagem/infra/security/SecurityFilter.java[m
+[36m@@ -0,0 +1,42 @@[m
+[32m+[m[32mpackage com.cooper.reciclagem.infra.security;[m
+[32m+[m
+[32m+[m[32mimport com.cooper.reciclagem.repositories.FuncionarioRepository;[m
+[32m+[m[32mimport jakarta.servlet.FilterChain;[m
+[32m+[m[32mimport jakarta.servlet.ServletException;[m
+[32m+[m[32mimport jakarta.servlet.http.HttpServletRequest;[m
+[32m+[m[32mimport jakarta.servlet.http.HttpServletResponse;[m
+[32m+[m[32mimport org.antlr.v4.runtime.Token;[m
+[32m+[m[32mimport org.springframework.beans.factory.annotation.Autowired;[m
+[32m+[m[32mimport org.springframework.security.authentication.UsernamePasswordAuthenticationToken;[m
+[32m+[m[32mimport org.springframework.security.core.context.SecurityContextHolder;[m
+[32m+[m[32mimport org.springframework.security.core.userdetails.UserDetails;[m
+[32m+[m[32mimport org.springframework.stereotype.Component;[m
+[32m+[m[32mimport org.springframework.web.filter.OncePerRequestFilter;[m
+[32m+[m
+[32m+[m[32mimport java.io.IOException;[m
+[32m+[m
+[32m+[m[32m@Component[m
+[32m+[m[32mpublic class SecurityFilter extends OncePerRequestFilter {[m
+[32m+[m[32m    @Autowired[m
+[32m+[m[32m    TokenService tokenService;[m
+[32m+[m[32m    @Autowired[m
+[32m+[m[32m    FuncionarioRepository funcionarioRepository;[m
+[32m+[m[32m    @Override[m
+[32m+[m[32m    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {[m
+[32m+[m[32m        var token = this.recoverToken(request);[m
+[32m+[m[32m        if(token != null){[m
+[32m+[m[32m            var login = tokenService.validateToken(token);[m
+[32m+[m[32m            UserDetails user = funcionarioRepository.findByUsername(login);[m
+[32m+[m
+[32m+[m[32m            var authentication = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities() );[m
+[32m+[m[32m            SecurityContextHolder.getContext().setAuthentication(authentication);[m
+[32m+[m[32m        }[m
+[32m+[m[32m        filterChain.doFilter(request, response);[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    private String recoverToken(HttpServletRequest request){[m
+[32m+[m[32m        var authHeader = request.getHeader("Authorization");[m
+[32m+[m[32m        if(authHeader == null) return null;[m
+[32m+[m[32m        return  authHeader.replace("Bearer ", "");[m
+[32m+[m[32m    }[m
+[32m+[m[32m}[m
+[1mdiff --git a/src/main/java/com/cooper/reciclagem/infra/security/TokenService.java b/src/main/java/com/cooper/reciclagem/infra/security/TokenService.java[m
+[1mnew file mode 100644[m
+[1mindex 0000000..9a5f23b[m
+[1m--- /dev/null[m
+[1m+++ b/src/main/java/com/cooper/reciclagem/infra/security/TokenService.java[m
+[36m@@ -0,0 +1,54 @@[m
+[32m+[m[32mpackage com.cooper.reciclagem.infra.security;[m
+[32m+[m
+[32m+[m[32mimport com.auth0.jwt.JWT;[m
+[32m+[m[32mimport com.auth0.jwt.algorithms.Algorithm;[m
+[32m+[m[32mimport com.auth0.jwt.exceptions.JWTCreationException;[m
+[32m+[m[32mimport com.auth0.jwt.exceptions.JWTVerificationException;[m
+[32m+[m[32mimport com.cooper.reciclagem.models.Funcionario;[m
+[32m+[m[32mimport org.springframework.beans.factory.annotation.Value;[m
+[32m+[m[32mimport org.springframework.stereotype.Service;[m
+[32m+[m
+[32m+[m[32mimport java.time.Instant;[m
+[32m+[m[32mimport java.time.LocalDateTime;[m
+[32m+[m[32mimport java.time.ZoneOffset;[m
+[32m+[m
+[32m+[m[32m@Service[m
+[32m+[m[32mpublic class TokenService {[m
+[32m+[m[32m    @Value("${api.security.token.secret}")[m
+[32m+[m[32m    private String secret;[m
+[32m+[m
+[32m+[m[32m    public String generateToken(Funcionario username){[m
+[32m+[m[32m        try {[m
+[32m+[m[32m            Algorithm algorithm = Algorithm.HMAC256(secret);[m
+[32m+[m[32m            String token = JWT.create()[m
+[32m+[m[32m                    .withIssuer("reciclagem")[m
+[32m+[m[32m                    .withSubject(username.getUsername())[m
+[32m+[m[32m                    .withExpiresAt(genExpirationDate())[m
+[32m+[m[32m                    .sign(algorithm);[m
+[32m+[m[32m            return token;[m
+[32m+[m[32m        }[m
+[32m+[m[32m        catch(JWTCreationException exception){[m
+[32m+[m[32m            throw new RuntimeException("Erro gerando token -r", exception);[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m
+[32m+[m
+[32m+[m[32m    public String validateToken(String token){[m
+[32m+[m[32m        try {[m
+[32m+[m[32m            Algorithm algorithm = Algorithm.HMAC256(secret);[m
+[32m+[m[32m            return JWT.require(algorithm)[m
+[32m+[m[32m                    .withIssuer("reciclagem")[m
+[32m+[m[32m                    .build()[m
+[32m+[m[32m                    .verify(token)[m
+[32m+[m[32m                    .getSubject();[m
+[32m+[m[32m        } catch(JWTVerificationException exception){[m
+[32m+[m[32m            return "";[m
+[32m+[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    private Instant genExpirationDate(){[m
+[32m+[m[32m        return LocalDateTime.now().plusHours(2).toInstant(ZoneOffset.of("-03:00"));[m
+[32m+[m[32m    }[m
+[32m+[m[32m}[m
+[1mdiff --git a/src/main/java/com/cooper/reciclagem/models/Funcionario.java b/src/main/java/com/cooper/reciclagem/models/Funcionario.java[m
+[1mindex d1ff691..3f0101e 100644[m
+[1m--- a/src/main/java/com/cooper/reciclagem/models/Funcionario.java[m
+[1m+++ b/src/main/java/com/cooper/reciclagem/models/Funcionario.java[m
+[36m@@ -47,7 +47,7 @@[m [mpublic class Funcionario implements UserDetails {[m
+ [m
+     @Override[m
+     public String getPassword() {[m
+[31m-        return "";[m
+[32m+[m[32m        return this.funcionarioSenha;[m
+     }[m
+ [m
+     @Override[m
+[1mdiff --git a/src/main/resources/application.properties b/src/main/resources/application.properties[m
+[1mnew file mode 100644[m
+[1mindex 0000000..426fabe[m
+[1m--- /dev/null[m
+[1m+++ b/src/main/resources/application.properties[m
+[36m@@ -0,0 +1,11 @@[m
+[32m+[m[32mspring.application.name=reciclagem[m
+[32m+[m[32mspring.datasource.url=jdbc:mysql://localhost:3306/cooper_database?useTimezone=true&serverTimezone=UTC[m
+[32m+[m[32mspring.datasource.username=root[m
+[32m+[m[32mspring.datasource.password=roberto123[m
+[32m+[m[32mspring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver[m
+[32m+[m[32mspring.jpa.hibernate.ddl-auto=update[m
+[32m+[m[32mspring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect[m
+[32m+[m[32mspring.jpa.show-sql=true[m
+[32m+[m[32mspring.jpa.properties.hibernate.format_sql=true[m
+[32m+[m[32mspring.jpa.hibernate.naming-strategy=org.hibernate.cfg.ImprovedNamingStrategy[m
+[32m+[m[32mapi.security.token.secret=${JWT_SECRET:my-secret-key}[m
+\ No newline at end of file[m
