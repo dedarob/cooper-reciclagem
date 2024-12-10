@@ -16,11 +16,11 @@ public class MaterialController {
     @Autowired
     private MaterialRepository repo;
 
-    @GetMapping
-    public ResponseEntity<List<Material>> getMaterial() {
-        List<Material> list = (List<Material>) repo.findAll();
-        return ResponseEntity.status(200).body(list);
-    }
+        @GetMapping
+        public ResponseEntity<List<Material>> getMaterial() {
+            List<Material> list = (List<Material>) repo.findAll();
+            return ResponseEntity.status(200).body(list);
+        }
 
     @PostMapping
     public ResponseEntity<Material> createMaterial(@RequestBody Material material) {

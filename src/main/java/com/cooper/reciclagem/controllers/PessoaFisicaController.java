@@ -34,15 +34,20 @@ public class PessoaFisicaController {
 
 
     @GetMapping
-    public ResponseEntity<?> listAllPessoaFisica(@RequestParam("returnNameOnly") String returnNameOnly){
-        System.out.println(returnNameOnly);
-        if("true".equals(returnNameOnly)) {
+    public ResponseEntity<?> listPessoaFisica(@RequestParam("returnTypes") String returnTypes, @RequestParam(value="name", required = false) String name){
+        if("username".equals(returnTypes)) {
             List<String> list = this.pfService.getAllUsernames();
-            System.out.println("I'm crazy");
             return ResponseEntity.ok().body(list);
-        } else {
+        }
+        else if("idAndUsername".equals(returnTypes)) {
+            if (name == null || name.isEmpty()) {
+                return ResponseEntity.badRequest().body("Name is required for idAndUsername search");
+            }
+            System.out.println("THIS IS BEING EXECUTED");
+            return ResponseEntity.ok().body(this.pfService.getIdAndUsername(name));
+        }
+        else {
                 List<PessoaFisica> list = this.pfService.getAllUsers();
-            System.out.println("maybe not");
                 return ResponseEntity.ok().body(list);
             }
     }
