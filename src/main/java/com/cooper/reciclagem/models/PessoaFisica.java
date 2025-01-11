@@ -12,7 +12,6 @@ public class PessoaFisica {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
-    private Integer cod;
     private String pfNome;
     private String cpf;
     private String identidade;

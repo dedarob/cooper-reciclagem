@@ -11,7 +11,6 @@ import lombok.Setter;
 @NoArgsConstructor
 public class PessoaFisicaDTO {
     private Integer id;
-    private Integer cod;
     private String pfNome;
     private String identidade;
     private String email;
